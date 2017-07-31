@@ -37,7 +37,8 @@ def plot_value_function(V, title="Value Function"):
     x_range = np.arange(min_x, max_x + 1)
     y_range = np.arange(min_y, max_y + 1)
     X, Y = np.meshgrid(x_range, y_range)
-
+    #print(X)
+    #print(Y)
     # Find value for all (x, y) coordinates
     Z_noace = np.apply_along_axis(lambda _: V[(_[0], _[1], False)], 2, np.dstack([X, Y]))
     Z_ace = np.apply_along_axis(lambda _: V[(_[0], _[1], True)], 2, np.dstack([X, Y]))
