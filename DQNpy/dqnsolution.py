@@ -14,7 +14,8 @@ if "../" not in sys.path:
 from lib import plotting
 from collections import deque, namedtuple
 
-
+#Select which GPU to calcute the project.
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 env = gym.envs.make("Breakout-v0")
 # Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
 VALID_ACTIONS = [0, 1, 2, 3]
@@ -106,12 +107,20 @@ class Estimator():
         self.predictions = tf.contrib.layers.fully_connected(fc1, len(VALID_ACTIONS))
 
         # Get the predictions for the chosen actions only
+        # Frist put batch result flatten one-D array, if want to get the value of each batch selected actions , get the index related 
         gather_indices = tf.range(batch_size) * tf.shape(self.predictions)[1] + self.actions_pl
-        #print("gather indices:", gather_indices)
+        self.gather_indicesL = gather_indices
+        '''
+        print("*****************************")
+        print("gather indices:", gather_indices)
+        print("*****************************")
+        '''
+
         self.action_predictions = tf.gather(tf.reshape(self.predictions, [-1]), gather_indices)
 
         # Calcualte the loss
         self.losses = tf.squared_difference(self.y_pl, self.action_predictions)
+        #calcualte the mean value of matrix self.losses
         self.loss = tf.reduce_mean(self.losses)
 
         # Optimizer Parameters from original paper
@@ -154,9 +163,16 @@ class Estimator():
           The calculated loss on the batch.
         """
         feed_dict = { self.X_pl: s, self.y_pl: y, self.actions_pl: a }
-        summaries, global_step, _, loss = sess.run(
-            [self.summaries, tf.contrib.framework.get_global_step(), self.train_op, self.loss],
+        gather_indicesreal, summaries, global_step, _, loss = sess.run(
+            [self.gather_indicesL, self.summaries, tf.contrib.framework.get_global_step(), self.train_op, self.loss],
             feed_dict)
+
+        '''
+        print("*****************************")
+        print("gather indices:", gather_indicesreal)
+        print("*****************************")
+        '''
+
         if self.summary_writer:
             #self.summary_writer=
             #self.summary_writer = tf.summary.FileWriter(summary_dir,sess.graph)
@@ -179,7 +195,10 @@ with tf.Session() as sess:
     observation = env.reset()
     
     observation_p = sp.process(sess, observation)
+
+    #[observation_p]*4 is the [[observation_p],[observation_p],[observation_p],[observation_p]], and stack it by [axis = 2]
     observation = np.stack([observation_p] * 4, axis=2)
+    # generate two frame data which used to input the network.
     observations = np.array([observation] * 2)
     
     # Test Prediction
@@ -344,12 +363,14 @@ def deep_q_learning(sess,
         action_probs = policy(sess, state, epsilons[min(total_t, epsilon_decay_steps-1)])
         action = np.random.choice(np.arange(len(action_probs)), p=action_probs)
         next_state, reward, done, _ = env.step(VALID_ACTIONS[action])
-        #print("the shap1 is",np.shape(next_state))
+        print("the shap1 is",np.shape(next_state))
         next_state = state_processor.process(sess, next_state)
-        #print("the shap2 is %d",np.shape(next_state))
+        print("the shap2 is",np.shape(next_state))
+        # add past latest three frame screen pics and now state pics toghter and act as the network input
         next_state = np.append(state[:,:,1:], np.expand_dims(next_state, 2), axis=2)
-        #print("the shap3 is %d",np.shape(next_state))
+        print("the shap3 is",np.shape(next_state))
         replay_memory.append(Transition(state, action, reward, next_state, done))
+        # if the result is fail, start again from zero
         if done:
             state = env.reset()
             state = state_processor.process(sess, state)
@@ -420,10 +441,13 @@ def deep_q_learning(sess,
 
             # Sample a minibatch from the replay memory
             samples = random.sample(replay_memory, batch_size)
+            # the zip function: put correspond position element together
+            # the map function: np.array effect on the zip(*samples)
             states_batch, action_batch, reward_batch, next_states_batch, done_batch = map(np.array, zip(*samples))
 
             # Calculate q values and targets
             q_values_next = target_estimator.predict(sess, next_states_batch)
+            # np.invert(x) function: Take the inverse of x ,if done_batch is 1,denote the env is ok ,other is game over.
             targets_batch = reward_batch + np.invert(done_batch).astype(np.float32) * discount_factor * np.amax(q_values_next, axis=1)
             #print("kkkk",q_values_next)
             # Perform gradient descent update

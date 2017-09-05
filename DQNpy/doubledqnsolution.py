@@ -14,6 +14,10 @@ if "../" not in sys.path:
 from lib import plotting
 from collections import deque, namedtuple
 
+#Select which GPU to calcute the project.
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+
 env = gym.envs.make("Breakout-v0")
 
 # Atari Actions: 0 (noop), 1 (fire), 2 (left) and 3 (right) are valid actions
