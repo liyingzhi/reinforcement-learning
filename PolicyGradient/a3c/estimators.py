@@ -68,6 +68,8 @@ class PolicyEstimator():
 
     with tf.variable_scope("policy_net"):
       self.logits = tf.contrib.layers.fully_connected(fc1, num_outputs, activation_fn=None)
+
+      # the output's result is the softmax
       self.probs = tf.nn.softmax(self.logits) + 1e-8
 
       self.predictions = {
